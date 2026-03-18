@@ -29,11 +29,23 @@ pub fn loadConfig(allocator: std.mem.Allocator) !Config {
     } else |_| {}
 
     // Try global config
-    const home_dir = std.posix.getenv("HOME") orelse return Config{
-        .repo = try allocator.dupe(u8, DEFAULT_REPO),
-        .ref_type = .none,
-        .ref_value = null,
+    const home_dir = if (std.process.getEnvVarOwned(allocator, "HOME")) |home|
+        home
+    else |err| switch (err) {
+        error.EnvironmentVariableNotFound => if (std.process.getEnvVarOwned(allocator, "USERPROFILE")) |profile|
+            profile
+        else |_| return Config{
+            .repo = try allocator.dupe(u8, DEFAULT_REPO),
+            .ref_type = .none,
+            .ref_value = null,
+        },
+        else => return Config{
+            .repo = try allocator.dupe(u8, DEFAULT_REPO),
+            .ref_type = .none,
+            .ref_value = null,
+        },
     };
+    defer allocator.free(home_dir);
 
     const global_config_path = try std.fs.path.join(allocator, &[_][]const u8{
         home_dir,
@@ -74,10 +86,12 @@ fn loadConfigFromPath(allocator: std.mem.Allocator, path: []const u8) !Config {
 
     const root = parsed.value.object;
 
-    const repo = if (root.get("repo")) |r|
-        try allocator.dupe(u8, r.string)
+    const repo_raw = if (root.get("repo")) |r|
+        r.string
     else
         return error.MissingRepo;
+        
+    const repo = try allocator.dupe(u8, std.mem.trim(u8, repo_raw, " `\t\n\r"));
 
     // Check for ref types
     var ref_type: RefType = .none;
@@ -111,17 +125,31 @@ fn loadConfigFromPath(allocator: std.mem.Allocator, path: []const u8) !Config {
 
 fn stripComments(allocator: std.mem.Allocator, content: []const u8) ![]u8 {
     var result = try std.ArrayList(u8).initCapacity(allocator, content.len);
-    defer result.deinit(allocator);
+    errdefer result.deinit(allocator);
+
+    var in_string: bool = false;
+    var escape: bool = false;
 
     var i: usize = 0;
     while (i < content.len) {
-        if (i + 1 < content.len and content[i] == '/' and content[i + 1] == '/') {
+        if (!in_string and i + 1 < content.len and content[i] == '/' and content[i + 1] == '/') {
             // Skip until end of line
             while (i < content.len and content[i] != '\n') : (i += 1) {}
-        } else {
-            try result.append(allocator, content[i]);
-            i += 1;
+            continue;
         }
+
+        if (!escape and content[i] == '"') {
+            in_string = !in_string;
+        }
+
+        if (in_string and content[i] == '\\' and !escape) {
+            escape = true;
+        } else {
+            escape = false;
+        }
+
+        try result.append(allocator, content[i]);
+        i += 1;
     }
 
     return result.toOwnedSlice(allocator);
@@ -164,7 +192,15 @@ pub fn getConfigSource(allocator: std.mem.Allocator) ![]const u8 {
     std.fs.cwd().access(".config/skills/skills.json", .{}) catch |err| {
         if (err == error.FileNotFound) {
             // Check global
-            const home_dir = std.posix.getenv("HOME") orelse return try allocator.dupe(u8, "default");
+            const home_dir = if (std.process.getEnvVarOwned(allocator, "HOME")) |home|
+                home
+            else |e| switch (e) {
+                error.EnvironmentVariableNotFound => if (std.process.getEnvVarOwned(allocator, "USERPROFILE")) |profile|
+                    profile
+                else |_| return try allocator.dupe(u8, "default"),
+                else => return try allocator.dupe(u8, "default"),
+            };
+            defer allocator.free(home_dir);
 
             const global_path = try std.fs.path.join(allocator, &[_][]const u8{
                 home_dir,

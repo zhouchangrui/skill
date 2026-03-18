@@ -75,8 +75,10 @@ fn printUsage() !void {
         \\  skill init
         \\  skill init --repo https://github.com/org/skills
         \\  skill list
-        \\  skill add testing docs
-        \\  skill remove testing
+        \\  skill add skills/docs
+        \\  skill add skills/pdf -o ./my_skills/
+        \\  skill remove skills/docs
+        \\  skill remove C:\absolute\path\to\skills\pdf
         \\  skill update --all
         \\  skill env
         \\  skill onboard

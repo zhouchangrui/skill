@@ -119,6 +119,7 @@ pub fn fetchSkill(allocator: std.mem.Allocator, cfg: config.Config, skill_name: 
     const sparse_file = try std.fs.createFileAbsolute(sparse_path, .{});
     defer sparse_file.close();
 
+    // Support nested skills (e.g. skills/pdf)
     const pattern = try std.fmt.allocPrint(allocator, "{s}/\n", .{skill_name});
     defer allocator.free(pattern);
     try sparse_file.writeAll(pattern);
@@ -144,8 +145,15 @@ pub fn fetchSkill(allocator: std.mem.Allocator, cfg: config.Config, skill_name: 
     try runGitCommand(allocator, &[_][]const u8{ "git", "checkout", "FETCH_HEAD" }, temp_dir_path);
 
     // Copy skill directory to destination
+    // If skill_name is a path (e.g. "skills/pdf"), we need to use the full path to find it in the temp repo
     const skill_source = try std.fs.path.join(allocator, &[_][]const u8{ temp_dir_path, skill_name });
     defer allocator.free(skill_source);
+
+    // Verify source exists
+    var dir = std.fs.openDirAbsolute(skill_source, .{}) catch {
+        return error.SkillNotFound;
+    };
+    dir.close();
 
     try copyDirectory(allocator, skill_source, dest_path);
 }
@@ -205,21 +213,21 @@ fn copyDirectory(allocator: std.mem.Allocator, source: []const u8, dest: []const
 }
 
 fn createSecureTempDir(allocator: std.mem.Allocator) ![]const u8 {
-    const tmp_base = std.posix.getenv("TMPDIR") orelse std.posix.getenv("TEMP") orelse "/tmp";
+    const tmp_dir_base = if (std.process.getEnvVarOwned(allocator, "TMPDIR")) |tmp|
+        tmp
+    else |_| if (std.process.getEnvVarOwned(allocator, "TEMP")) |temp|
+        temp
+    else |_| if (std.process.getEnvVarOwned(allocator, "TMP")) |tmp2|
+        tmp2
+    else |_| try allocator.dupe(u8, "/tmp");
+    defer allocator.free(tmp_dir_base);
 
     // Use cryptographically random name to prevent race conditions
     var random_bytes: [16]u8 = undefined;
     std.crypto.random.bytes(&random_bytes);
+    const random_hex = std.fmt.bytesToHex(random_bytes, .lower);
 
-    // Convert to hex string
-    var hex_buf: [32]u8 = undefined;
-    const hex_string = std.fmt.bytesToHex(&random_bytes, .lower);
-    @memcpy(hex_buf[0..32], &hex_string);
-
-    const random_name = try std.fmt.allocPrint(allocator, "skill-{s}", .{hex_buf[0..32]});
-    defer allocator.free(random_name);
-
-    const temp_dir_path = try std.fs.path.join(allocator, &[_][]const u8{ tmp_base, random_name });
+    const temp_dir_path = try std.fs.path.join(allocator, &[_][]const u8{ tmp_dir_base, &random_hex });
     errdefer allocator.free(temp_dir_path);
 
     // Create directory - fails if already exists (prevents race condition)

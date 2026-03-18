@@ -1,382 +1,121 @@
-# skill
+# Skill CLI
 
-A command-line tool for vendoring and managing LLM skills from a central repository.
+A command-line tool for vending and managing LLM skills from a central repository.
 
-## What is skill?
+## Installation
 
-`skill` helps you manage reusable AI agent instructions (called "skills") in your projects. Instead of copying and maintaining skill files manually, `skill` lets you:
+### Windows
 
-- 📦 **Vendor skills** from a central repository into your project
-- 🔄 **Keep skills up-to-date** with a single command
-- ✏️ **Override skills locally** without modifying the originals
-- 🎯 **Pin to specific versions** using branches, tags, or commit SHAs
+```powershell
+# Using pre-compiled binary
+# Download the latest release and add it to your PATH
+```
+
+### macOS / Linux
+
+```bash
+# Clone and build
+git clone <this-repo>
+cd skill
+zig build -Doptimize=ReleaseSafe
+# The binary will be available at zig-out/bin/skill
+```
 
 ## Quick Start
 
-### Installation
-
-**macOS/Linux (Homebrew):**
-```bash
-brew install DockYard/skill/skill
-```
-
-**Shell script:**
-```bash
-curl -fsSL https://raw.githubusercontent.com/DockYard/skill/main/scripts/install.sh | sh
-```
-
-See [INSTALL.md](INSTALL.md) for more installation options.
-
-### Basic Usage
+Initialize the skills system in your project:
 
 ```bash
-# Initialize skills in your project
-skill init
-
-# List available skills
-skill list
-
-# Add skills to your project
-skill add zig testing
-
-# Update all skills
-skill update --all
+skill init --repo http://192.168.36.168:3002/trendy/skills.git
 ```
 
-## How It Works
+This creates a `skills/` directory and saves the configuration to `~/.config/skills/skills.json` (or `%USERPROFILE%\.config\skills\skills.json` on Windows).
 
-### Repository Structure
+## Usage
 
-Skills are stored in a central git repository with each skill as a top-level directory:
+### Listing Available Skills
 
-```
-skills-repo/
-  zig/
-    SKILL.md
-    resources/
-    scripts/
-  testing/
-    SKILL.md
-  docs/
-    SKILL.md
-```
-
-### Project Structure
-
-After running `skill init` and adding skills, your project looks like:
-
-```
-your-project/
-  .config/
-    skills/
-      skills.json           # Configuration
-  skills/
-    .gitignore              # Ignores OVERRIDE.md files
-    README.md               # Instructions for AI agents
-    zig/
-      SKILL.md              # Vendored skill
-      resources/
-      scripts/
-    testing/
-      SKILL.md
-```
-
-### Local Overrides
-
-Create `OVERRIDE.md` in any skill directory to customize it locally:
-
-```bash
-# Add your local modifications
-echo "# Local customizations" > skills/zig/OVERRIDE.md
-```
-
-- `OVERRIDE.md` takes precedence over `SKILL.md`
-- Automatically gitignored (stays local)
-- Preserved during `skill update`
-
-## Commands
-
-### `skill init`
-
-Initialize the skills system in your project.
-
-```bash
-# Use default repository
-skill init
-
-# Use custom repository
-skill init --repo git@github.com:yourorg/skills.git
-
-# Pin to specific version
-skill init --repo git@github.com:yourorg/skills.git --tag v1.0.0
-skill init --repo git@github.com:yourorg/skills.git --branch develop
-skill init --repo git@github.com:yourorg/skills.git --sha abc123
-```
-
-**Options:**
-- `--repo <url>` - Git repository URL (default: `git@github.com:DockYard/skills.git`)
-- `--branch <name>` - Pin to a specific branch
-- `--tag <name>` - Pin to a specific tag
-- `--sha <hash>` - Pin to a specific commit
-
-### `skill list`
-
-List all available skills from the configured repository.
+View all skills available in the configured remote repository:
 
 ```bash
 skill list
 ```
 
-### `skill add`
+### Adding Skills
 
-Add one or more skills to your project.
+Add one or more skills to your local project. By default, they are saved in the `skills/` directory of your current project.
 
 ```bash
-# Add single skill
-skill add zig
+# Add a skill from a specific path in the remote repository
+skill add skills/pdf
 
 # Add multiple skills
-skill add zig testing docs
+skill add skills/pdf skills/pptx
+
+# Add a skill to a custom output directory
+skill add skills/pdf -o ./my_custom_folder
 ```
 
-Skills are fetched from the remote repository and copied into your `skills/` directory.
+### Removing Skills
 
-### `skill remove`
-
-Remove one or more skills from your project.
+Remove installed skills from your local project.
 
 ```bash
-# Remove single skill
-skill remove zig
+# Remove by relative path (assumes it's inside the skills/ directory)
+skill remove skills/pdf
 
 # Remove multiple skills
-skill remove zig testing
+skill remove skills/pdf skills/pptx
+
+# Remove by absolute path
+skill remove C:\absolute\path\to\skills\pdf
 ```
 
-If a skill has an `OVERRIDE.md` file, you'll be prompted for confirmation.
+### Updating Skills
 
-### `skill update`
-
-Update skills to the latest version from the repository.
+Update your local skills to the latest version from the remote repository.
 
 ```bash
-# Show usage and list installed skills
-skill update
-
 # Update specific skills
-skill update zig testing
+skill update skills/pdf
 
 # Update all installed skills
 skill update --all
 ```
 
-Updates preserve your local `OVERRIDE.md` files.
+### Environment and Configuration
 
-### `skill env`
-
-Display configuration information.
+View the current configuration and repository path:
 
 ```bash
 skill env
 ```
 
-Shows:
-- Version
-- Config file location
-- Repository URL
-- Branch/tag/SHA (if pinned)
+### Onboarding
 
-### `skill onboard`
-
-Print the AGENTS.md integration block.
+Print the `AGENTS.md` block for LLM instructions to integrate the skills system into your agent workflows:
 
 ```bash
 skill onboard
 ```
 
-Shows instructions for integrating the skills system into your project's `AGENTS.md` file.
-
-### `skill --version`
-
-Display version information.
-
-```bash
-skill --version
-skill -v
-```
-
-### `skill --help`
-
-Display help information.
-
-```bash
-skill --help
-skill -h
-skill help
-```
-
 ## Configuration
 
-Configuration is loaded in this order:
+The configuration file is typically stored at `~/.config/skills/skills.json` (or `%USERPROFILE%\.config\skills\skills.json` on Windows). You can specify the repository and the git reference (branch, tag, or sha).
 
-1. **Local project**: `.config/skills/skills.json` (in project root)
-2. **Global user**: `~/.config/skills/skills.json`
-3. **Default**: `git@github.com:DockYard/skills.git`
-
-### Configuration Format
-
-`.config/skills/skills.json` (JSON5 format, comments allowed):
-
-```json5
+```json
 {
-  "repo": "git@github.com:DockYard/skills.git"
+  "repo": "http://192.168.36.168:3002/trendy/skills.git"
   // "branch": "main"
   // "tag": "v1.0.0"
   // "sha": "abc123def456"
 }
 ```
 
-**Rules:**
-- Only one of `branch`, `tag`, or `sha` can be specified
-- If none specified, uses repository's HEAD
-- Comments are supported (JSON5 format)
-
-## Use Cases
-
-### Development Team
-
-Share common AI agent instructions across your team:
-
-```bash
-# Each developer initializes
-skill init
-
-# Add the skills your project uses
-skill add testing code-review
-
-# Team updates skills as they evolve
-skill update --all
-```
-
-### Multiple Projects
-
-Use different skill versions per project:
-
-```bash
-# Project A: use stable release
-cd project-a
-skill init --tag v1.0.0
-skill add zig
-
-# Project B: use latest development
-cd ../project-b
-skill init --branch develop
-skill add zig
-```
-
-### Local Customization
-
-Customize skills without modifying the originals:
-
-```bash
-skill add zig
-
-# Add local-specific instructions
-cat >> skills/zig/OVERRIDE.md << 'EOF'
-# Project-Specific Zig Guidelines
-
-- Always use Zig 0.15.1 for this project
-- Run tests with `zig build test -Dtest-filter=critical`
-EOF
-```
-
-## For LLM/AI Agents
-
-When you run `skill init`, a `skills/README.md` file is created with instructions for AI agents. The key points:
-
-1. **Read order**: `AGENTS.md` → `skills/README.md` → `SKILL.md` → `OVERRIDE.md`
-2. **Precedence**: `OVERRIDE.md` overrides `SKILL.md`
-3. **Discovery**: List `skills/` directory to find available skills
-
-Add this block to your `AGENTS.md` (or run `skill onboard` to see it):
-
-```markdown
-<!-- BEGIN: skills-system -->
-Agents MUST resolve guidance in this order:
-
-1) Project-level behavior: `AGENTS.md` (this file)
-2) Skills system rules: `skills/README.md`
-3) For each required skill:
-   - Read `skills/<name>/SKILL.md`
-   - If `skills/<name>/OVERRIDE.md` exists, its guidance OVERRIDES `SKILL.md`
-
-Never assume all skills exist; only use those present under `skills/`.
-If two skills conflict, prefer the more specific skill's OVERRIDES, then SKILL.md.
-<!-- END: skills-system -->
-```
-
-## Creating Your Own Skills Repository
-
-Want to create your own skills repository?
-
-1. **Create a git repository** with skills as top-level directories:
-   ```
-   your-skills/
-     skill-one/
-       SKILL.md
-     skill-two/
-       SKILL.md
-       resources/
-   ```
-
-2. **Each skill must have a `SKILL.md`** file containing instructions for AI agents
-
-3. **Skills can include additional files** like resources, scripts, or templates
-
-4. **Use it in your project**:
-   ```bash
-   skill init --repo git@github.com:yourorg/your-skills.git
-   skill list
-   skill add skill-one
-   ```
-
-## Requirements
-
-- **Git** must be installed and in your PATH
-- **SSH access** to your skills repository (for default setup)
-  - Or use HTTPS URLs with credentials configured
-
 ## Building from Source
 
-Requirements:
-- Zig 0.15.1 or later
-- Git
+Requires [Zig](https://ziglang.org/) version 0.15.1 or later.
 
 ```bash
-git clone https://github.com/DockYard/skill.git
-cd skill
 zig build -Doptimize=ReleaseSafe
-sudo cp zig-out/bin/skill /usr/local/bin/
 ```
-
-## Documentation
-
-- [INSTALL.md](INSTALL.md) - Installation instructions
-- [PLAN.md](PLAN.md) - Complete project specification
-- [CHANGELOG.md](CHANGELOG.md) - Version history
-- [RELEASE.md](RELEASE.md) - Release process (for maintainers)
-- [HOMEBREW_SETUP.md](HOMEBREW_SETUP.md) - Homebrew distribution guide
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues or pull requests.
-
-## License
-
-[MIT License](LICENSE)
-
-## About DockYard
-
-`skill` is created and maintained by [DockYard](https://dockyard.com).
-
-DockYard is a digital product consultancy specializing in user experience, web applications, and mobile applications.
